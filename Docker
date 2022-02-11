@@ -1,0 +1,10 @@
+#Dockerfile
+FROM nginx:latest
+ENV PORT 8080
+
+
+#cmds to create image
+docker build --tag mynginx:1.0 .
+
+#cmd to start the containter
+docker run --name mynginxcont -p 8080:8080 mynginx:1.0
