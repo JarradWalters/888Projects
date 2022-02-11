@@ -37,5 +37,6 @@ if($image.IsPresent)
     $WebClient = New-Object System.Net.WebClient
     $imageName = $randomImageUrl |Split-Path -Leaf
     $WebClient.DownloadFile($randomImageUrl,"$pwd\$imageName")
+    Write-Host "A random image of a $breed has been downloaded to $pwd\$imageName"
     
 }
