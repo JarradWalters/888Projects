@@ -1,0 +1,59 @@
+---
+- name: Manage windows servers
+  hosts: webservers
+  tasks:
+    - name: Install IIS 
+      ansible.windows.win_feature:
+        name:
+          - Web-Server
+          - Web-Common-Http
+        state: present
+    - name: Create a new application pool in 'Started' state
+      win_iis_webapppool:
+       name: hello
+       state: started
+
+    - name: Run basic PowerShell script (experimental)
+      ansible.windows.win_powershell:
+        script: |
+         $cert = (New-SelfSignedCertificate -Subject "localhost" -TextExtension @("2.5.29.17={text}DNS=localhost&IPAddress=127.0.0.1&IPAddress=::1") -CertStoreLocation "Cert:\LocalMachine\My") |select-object name, Thumbprint | convertto-json
+    - name: Create directory structure
+      win_file:
+       path: C:\inetpub\hello
+       state: directory
+    - name: Copy html over
+      ansible.windows.win_copy:
+       src: ./myfiles/index.html
+       dest: C:\inetpub\hello\index.html
+    - name: Make hello world site
+      win_iis_website:
+       name: HelloWorld
+       state: started
+       port: 80
+       ip: 127.0.0.1
+       application_pool: hello
+       physical_path: C:\inetpub\hello
+       parameters: logfile.directory:C:\inetpub\logs
+      register: website
+    - name: Add a HTTPS binding
+      win_iis_webbinding:
+       name: HelloWorld
+       protocol: https
+       port: 443
+       ip: 127.0.0.1
+       certificate_hash: "b82cc80939ad98f2bbb374469a9d240b871ffd99"
+       state: present
+    - name: Remove Default Web Site
+      win_iis_website:
+       name: "Default Web Site"
+       state: absent
+    - name: Install DNS server features
+      ansible.windows.win_feature:
+        name:
+          - DNS
+          - RSAT-DNS-Server
+        state: present
+    - name: Create new domain in a new forest on the target host
+      win_domain:
+       dns_domain_name: jarrads.domain
+       safe_mode_password: notSecure!
