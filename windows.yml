@@ -2,21 +2,17 @@
 - name: Manage windows servers
   hosts: webservers
   tasks:
-    - name: Install IIS 
+    - name: Install IIS Web-Server with sub features and management tools
       ansible.windows.win_feature:
-        name:
-          - Web-Server
-          - Web-Common-Http
+        name: Web-Server
         state: present
+        include_sub_features: yes
+        include_management_tools: yes
+      register: win_feature
     - name: Create a new application pool in 'Started' state
       win_iis_webapppool:
        name: hello
        state: started
-
-    - name: Run basic PowerShell script (experimental)
-      ansible.windows.win_powershell:
-        script: |
-         $cert = (New-SelfSignedCertificate -Subject "localhost" -TextExtension @("2.5.29.17={text}DNS=localhost&IPAddress=127.0.0.1&IPAddress=::1") -CertStoreLocation "Cert:\LocalMachine\My") |select-object name, Thumbprint | convertto-json
     - name: Create directory structure
       win_file:
        path: C:\inetpub\hello
@@ -35,18 +31,18 @@
        physical_path: C:\inetpub\hello
        parameters: logfile.directory:C:\inetpub\logs
       register: website
-    - name: Add a HTTPS binding
-      win_iis_webbinding:
-       name: HelloWorld
-       protocol: https
-       port: 443
-       ip: 127.0.0.1
-       certificate_hash: "b82cc80939ad98f2bbb374469a9d240b871ffd99"
-       state: present
-    - name: Remove Default Web Site
-      win_iis_website:
-       name: "Default Web Site"
-       state: absent
+    - name: Run basic PowerShell script
+      ansible.windows.win_powershell:
+        script: |
+         $binding = HOSTNAME #(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress
+         $siteName = 'HelloWorld'
+         $cert = New-SelfSignedCertificate -DnsName "$binding" -CertStoreLocation "cert:\LocalMachine\My"
+         $DestStore = new-object System.Security.Cryptography.X509Certificates.X509Store([System.Security.Cryptography.X509Certificates.StoreName]::Root,"localmachine")
+         $DestStore.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+         $DestStore.Add($cert)
+         $DestStore.Close()
+         New-WebBinding -Name $siteName -Protocol "https" -Port 443 -IPAddress * -HostHeader $binding -SslFlags 1
+         (Get-WebBinding -Name $siteName -Port 443 -Protocol "https" -HostHeader $binding).AddSslCertificate($cert.Thumbprint, "my")
     - name: Install DNS server features
       ansible.windows.win_feature:
         name:
